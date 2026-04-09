@@ -25,9 +25,72 @@ PRD + Figma + API Docs              <- 用户提供的素材
 
 ---
 
-## 2. 三层架构
+## 2. Spec vs Agent vs Worker
 
-### 2.1 生成层 -- `/spec-init`
+### 核心关系
+
+```
+Spec   = 做什么    （需求、约束、任务图、验收标准）
+Agent  = 怎么做    （平台编码规范、构建工具、AI 入口配置）
+Worker = 运行时实例  （读取 Spec 获取上下文 + 遵循 Agent 规范执行开发）
+```
+
+**Spec** 是人与 AI 之间的共享契约。它存放在 spec-orchestrator 仓库中，定义功能、任务、依赖和验收标准——与平台无关。
+
+**Agent** 是平台特定的配置层。它存放在 `agents/{platform}/` 中，定义该平台的代码编写方式——编码规范、UI 框架规则、构建命令和 AI 入口。
+
+**Worker** 是运行在隔离 worktree 中的 AI 代理实例。由 `spec-drive` 创建，继承平台仓库中的 Agent 规范，并读取 Spec 文件来明确需要实现的内容。
+
+### 绑定机制
+
+```
+spec-orchestrator/                      平台仓库（如 my-ios-app/）
++-------------------------------+       +-------------------------------+
+|                               |       |                               |
+| agents/ios/                   |       | .claude/config.yaml           |
+|   ai/ios.md          (HOW)   | sync  |   specs_path: ../specs/proj   |
+|   ai/ui.md           (HOW)   |------>|   platform: ios               |
+|   CLAUDE.md          (HOW)   |       | ai/ios.md              (HOW)  |
+|   .claude/config.yaml        |       | ai/ui.md               (HOW)  |
+|                               |       | .claude/commands/             |
+| {project}/{version}/          |       |   spec-next.md   (PROTOCOL)   |
+|   features/F01.yaml  (WHAT)  |<------| specs/ -> ../specs/{project}  |
+|   tasks/ios.md       (WHO)   | read  | CLAUDE.md              (HOW)  |
+|   config.yaml        (DEPS)  |       |                               |
+|   implementation/    (WHY)   |       |                               |
++-------------------------------+       +-------------------------------+
+```
+
+1. **同步**：`agents/sync.sh` 将 Agent 配置（共享 + 平台特定）部署到平台仓库。
+2. **链接**：平台仓库的 `.claude/config.yaml` 通过 `specs_path` 指向 spec 仓库，建立符号链接。
+3. **派发**：`spec-drive` 读取 spec 文件构建任务依赖图，然后在目标平台仓库创建 worktree 并启动 Worker。
+4. **执行**：Worker 从平台仓库继承 Agent 规范（`ai/*.md`、`CLAUDE.md`），从 spec 文件（`features/*.yaml`、`tasks/*.md`）读取需求和上下文。
+
+### 多平台协调
+
+`spec-drive` 可同时向多个平台派发 Worker：
+
+```
+spec-drive next
+  |
+  +-- 读取 config.yaml -> 依赖图 -> Wave 1 任务
+  |
+  +-- iOS Worker（ios-repo 中的 worktree）
+  |     读取：agents/ios 规范 + features/F01.yaml + tasks/ios.md
+  |     写入：ios-repo 中的代码 + tasks/ios.md 中的状态
+  |
+  +-- Android Worker（android-repo 中的 worktree）
+        读取：agents/android 规范 + features/F01.yaml + tasks/android.md
+        写入：android-repo 中的代码 + tasks/android.md 中的状态
+```
+
+每个 Worker 在各自的 worktree 中独立运作。它们共享同一份 Spec（相同的 Feature YAML、相同的验收标准），但遵循不同的 Agent 规范（不同的编码规则、构建工具、UI 框架）。
+
+---
+
+## 3. 三层架构
+
+### 3.1 生成层 -- `/spec-init`
 
 **职责**：从 PRD + 素材一次性生成完整的规格骨架。
 
@@ -51,7 +114,7 @@ i18n seeds             ->  Step 6: 完整生成              ->  config.yaml
 | refresh | `/spec-init 1.0 refresh` | 增量添加（PRD 变更后新增功能） |
 | validate | `/spec-init 1.0 validate` | 仅验证，不修改文件 |
 
-### 2.2 编排层 -- `/spec-drive`
+### 3.2 编排层 -- `/spec-drive`
 
 **职责**：任务分析 + 依赖图 + worktree 创建 + Worker 分派 + 状态监控。
 
@@ -98,7 +161,7 @@ i18n seeds             ->  Step 6: 完整生成              ->  config.yaml
 | `verify` | 版本末尾 | 版本分支编译检查 |
 | `done` | 每版本一次 | 版本完成总结 |
 
-### 2.3 执行层 -- `/spec-next` (Worker)
+### 3.3 执行层 -- `/spec-next` (Worker)
 
 **职责**：在 worktree 中自主完成完整的开发生命周期。
 
@@ -128,7 +191,7 @@ i18n seeds             ->  Step 6: 完整生成              ->  config.yaml
 
 ---
 
-## 3. 规格层 -- 目录结构
+## 4. 规格层 -- 目录结构
 
 ```
 {project}/{version}/
@@ -158,8 +221,9 @@ i18n seeds             ->  Step 6: 完整生成              ->  config.yaml
 |                                         state_matrix <- 状态场景
 |                                         figma.pages[] <- 设计资源
 |                                         api[] <- 接口定义
-|                                         analytics[] <- 埋点追踪
-|                                         i18n_keys[] <- 国际化
+|                                         analytics[] <- 埋点追踪（capability）
+|                                         i18n_keys[] <- 国际化（capability）
+|                                         capabilities[] <- 启用的能力列表
 |                                         platform_tasks <- T/B 映射
 |                                         dependencies <- 功能间依赖
 |
@@ -169,7 +233,7 @@ i18n seeds             ->  Step 6: 完整生成              ->  config.yaml
 |   +-- ios.md ------------------------ T01-T{nn} 单一事实源（iOS）
 |   +-- android.md -------------------- T01-T{nn} 单一事实源（Android）
 |
-+-- i18n/
++-- i18n/                                 （capability: i18n）
 |   +-- strings.md -------------------- key | zh | ja | en
 |
 +-- figma-index.md -------------------- Section -> Page -> Node ID
@@ -190,15 +254,15 @@ i18n seeds             ->  Step 6: 完整生成              ->  config.yaml
 
 ---
 
-## 4. 数据流
+## 5. 数据流
 
-### 4.1 生成时数据流 (spec-init)
+### 5.1 生成时数据流 (spec-init)
 
 ```
 PRD --+-- Epic/Feature 提取 ----------> features/F{nn}.yaml
       +-- 埋点提取 --------------------> features/F{nn}.yaml -> analytics[]
       +-- 依赖提取 --------------------> tasks/backend.md (B{nn})
-      +-- 文案提取 --------------------> i18n/strings.md
+      +-- 文案提取 --------------------> i18n/strings.md（i18n capability 启用时）
 
 Figma --- Section/Page 查询 ----------> figma-index.md
       +-- Page->Feature 映射 ----------> features/F{nn}.yaml -> figma.pages[]
@@ -210,7 +274,7 @@ Swagger -- 接口提取 ------------------> features/F{nn}.yaml -> api[]
           +-- 任务分发 ----------------> tasks/{ios,android}.md
 ```
 
-### 4.2 执行时数据流 (spec-drive + spec-next)
+### 5.2 执行时数据流 (spec-drive + spec-next)
 
 ```
 config.yaml ----------------------> spec-drive: 版本配置
@@ -222,14 +286,14 @@ features/F{nn}.yaml -------------> Worker Step 4: 上下文收集
                                  -> Worker Step 7: API Verify 基线
 
 figma-index.md ------------------> Worker Step 7: Figma 截图下载
-i18n/strings.md -----------------> Worker Step 7: i18n 文件写入
+i18n/strings.md -----------------> Worker Step 7: i18n 文件写入（i18n capability 启用时）
 tasks/backend.md ----------------> Worker Step 7: API Contract Verify
 
 implementation/*.md -------------> Worker Step 6: 读取/生成设计
                                  -> Worker Step 7: 按设计实现
 ```
 
-### 4.3 变更时数据流 (spec-drive change + propagate)
+### 5.3 变更时数据流 (spec-drive change + propagate)
 
 ```
 发生变更
@@ -255,7 +319,7 @@ implementation/*.md -------------> Worker Step 6: 读取/生成设计
 
 ---
 
-## 5. Feature YAML 与 implementation/ 的分工
+## 6. Feature YAML 与 implementation/ 的分工
 
 ```
 Feature YAML = What + Constraint         implementation/ = How + Why
@@ -293,7 +357,7 @@ Feature YAML = What + Constraint         implementation/ = How + Why
 
 ---
 
-## 6. 状态生命周期
+## 7. 状态生命周期
 
 ```
 pending（未开始）
@@ -329,7 +393,7 @@ active（进行中）
 
 ---
 
-## 7. 分支与 Worktree 策略
+## 8. 分支与 Worktree 策略
 
 ```
 master (or main)
@@ -357,7 +421,7 @@ master (or main)
 
 ---
 
-## 8. 智能分析 -- 执行波次
+## 9. 智能分析 -- 执行波次
 
 根据 tasks/{platform}.md 中的依赖列构建依赖图，规划并行执行批次：
 
@@ -385,7 +449,7 @@ Blocked: T02, T03                       <- 等待后端 B01-B02
 
 ---
 
-## 9. 变更管理
+## 10. 变更管理
 
 ```
 CHANGELOG.md              dependency_index            Feature YAML
@@ -412,7 +476,7 @@ CHANGELOG.md              dependency_index            Feature YAML
 
 ---
 
-## 10. 权威文件索引
+## 11. 权威文件索引
 
 | 文件 | 角色 | 写入者 | 读取者 |
 |------|------|------------|---------|
@@ -427,14 +491,14 @@ CHANGELOG.md              dependency_index            Feature YAML
 | `{project}/{version}/CHANGELOG.md` | 变更追踪 | spec-drive change | propagate |
 | `{project}/{version}/DASHBOARD.md` | 进度仪表盘 | spec-drive status | 人工查看 |
 | `{project}/{version}/figma-index.md` | Figma 索引 | spec-init | Worker |
-| `{project}/{version}/i18n/strings.md` | 国际化 | spec-init | Worker |
+| `{project}/{version}/i18n/strings.md` | 国际化（capability） | spec-init | Worker |
 | `_scripts/SPEC-DRIVE-GUIDE.md` | 运维指南 | - | 人工参考 |
 | `_scripts/SPEC-ARCHITECTURE.md` | 架构文档 | - | 人工参考 |
 | `_templates/*.yaml\|md` | 文件模板 | - | spec-init |
 
 ---
 
-## 11. 典型工作流
+## 12. 典型工作流
 
 ### 新版本完整开发
 

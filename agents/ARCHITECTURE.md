@@ -27,14 +27,14 @@ Without a shared system, these files diverge across repositories. Cross-platform
 | AI rules | `git.md`, `workflow.md`, `tricks.md`, `api.md` | Git, workflow, API conventions |
 
 ### Platform-specific
-| Category | iOS | Android |
-|----------|-----|---------|
-| Conventions | `ai/ios.md` | `ai/android.md` |
-| UI rules | `ai/ui.md` (SwiftUI) | `ai/ui.md` (Compose) |
-| Entry point | `CLAUDE.md` (xcodebuild) | `CLAUDE.md` (gradlew) |
-| Agent entry | `AGENTS.md` (CocoaPods) | `AGENTS.md` (Gradle) |
-| Config | `.claude/config.yaml` | `.claude/config.yaml` |
-| Skills | `.claude/skills/` | `.claude/skills/` |
+| Category | iOS | Android | Web | Backend |
+|----------|-----|---------|-----|---------|
+| Conventions | `ai/ios.md` | `ai/android.md` | `ai/web.md` | `ai/backend.md` |
+| UI / API rules | `ai/ui.md` (SwiftUI) | `ai/ui.md` (Compose) | `ai/ui.md` (React) | `ai/api.md` (REST) |
+| Entry point | `CLAUDE.md` (xcodebuild) | `CLAUDE.md` (gradlew) | `CLAUDE.md` (vite/next) | `CLAUDE.md` (build cmd) |
+| Agent entry | `AGENTS.md` (CocoaPods) | `AGENTS.md` (Gradle) | `AGENTS.md` (npm/pnpm) | `AGENTS.md` (language CLI) |
+| Config | `.claude/config.yaml` | `.claude/config.yaml` | `.claude/config.yaml` | `.claude/config.yaml` |
+| Skills | `.claude/skills/` | `.claude/skills/` | `.claude/skills/` | `.claude/skills/` |
 
 ---
 
@@ -80,6 +80,24 @@ agents/
 |   |   +-- ui.md                     Compose/Material3 conventions
 |   +-- CLAUDE.md                     Claude Code entry (gradlew)
 |   +-- AGENTS.md                     Codex CLI entry (Android)
+|
++-- web/                              Web frontend-specific layer
+|   +-- .claude/
+|   |   +-- config.yaml               Web project config template
+|   +-- ai/
+|   |   +-- web.md                    Web/TypeScript coding conventions
+|   |   +-- ui.md                     React/component/Figma conventions
+|   +-- CLAUDE.md                     Claude Code entry (vite/next)
+|   +-- AGENTS.md                     Codex CLI entry (Web)
+|
++-- backend/                          Backend-specific layer
+|   +-- .claude/
+|   |   +-- config.yaml               Backend project config template
+|   +-- ai/
+|   |   +-- backend.md                Backend coding conventions
+|   |   +-- api.md                    API design and contract conventions
+|   +-- CLAUDE.md                     Claude Code entry (language build cmd)
+|   +-- AGENTS.md                     Codex CLI entry (Backend)
 |
 +-- sync.sh                           Deployment script
 +-- ARCHITECTURE.md                   This document
@@ -146,16 +164,25 @@ target repo/      Final result (shared + platform-specific)
 - **Build verification**: `./gradlew assembleDebug`.
 - **i18n**: `strings.xml` per `values-{locale}/` directory.
 
-### Future: Web Agent
+### Web Agent
 - **Build tool**: npm/pnpm + Vite/Next.js.
-- **UI framework**: React + TypeScript.
-- **Key conventions**: 2-space indent, ESLint + Prettier, functional components.
-- **Build verification**: `npm run build` or `pnpm build`.
-- **i18n**: JSON locale files or i18next.
+- **UI framework**: React + TypeScript (functional components).
+- **Key conventions**: 2-space indent, ESLint + Prettier, semantic HTML, accessibility.
+- **Build verification**: `{pkg_manager} run build && {pkg_manager} run typecheck`.
+- **i18n**: JSON locale files via react-intl / i18next / vue-i18n.
+
+### Backend Agent
+- **Build tool**: language-specific (go build / gradlew / npm run build / cargo build).
+- **Framework**: language-specific (Gin / Express / FastAPI / Spring Boot).
+- **Key conventions**: follows language official style, structured error handling, RESTful API design.
+- **Build verification**: `{build_cmd} && {test_cmd}`.
+- **API design**: contract-first -- implement from spec, verify against Feature YAML `api[]`.
+
+### Future Platforms
 
 To add a new platform:
 1. Create `agents/{platform}/` with the same structure as `ios/` or `android/`.
-2. Add platform-specific `ai/{platform}.md`, `ai/ui.md`, `CLAUDE.md`, `AGENTS.md`, `.claude/config.yaml`.
+2. Add platform-specific `ai/{platform}.md`, `ai/ui.md` (or `ai/api.md`), `CLAUDE.md`, `AGENTS.md`, `.claude/config.yaml`.
 3. Run `./agents/sync.sh {platform} ../target-repo`.
 
 ---
@@ -216,8 +243,8 @@ Platform repo (after sync):
 - [ ] Git hooks to warn when agent files change without re-syncing.
 
 ### Phase 4: Additional Platforms
-- [ ] Web agent template (React + TypeScript).
-- [ ] Backend agent template (if needed for API-first development).
+- [x] Web agent template (React + TypeScript).
+- [x] Backend agent template (API-first development).
 - [ ] Flutter agent template (single codebase, dual platform).
 
 ---
@@ -231,7 +258,8 @@ Platform repo (after sync):
 | `agents/_shared/ai/*.md` | Shared | Cross-platform conventions (git, workflow, API) |
 | `agents/{platform}/.claude/config.yaml` | Template | Platform project config with placeholders |
 | `agents/{platform}/ai/{platform}.md` | Platform | Language and architecture conventions |
-| `agents/{platform}/ai/ui.md` | Platform | UI framework conventions |
+| `agents/{platform}/ai/ui.md` | Platform | UI framework conventions (iOS, Android, Web) |
+| `agents/backend/ai/api.md` | Platform | API design and contract conventions (Backend) |
 | `agents/{platform}/CLAUDE.md` | Platform | Claude Code entry point |
 | `agents/{platform}/AGENTS.md` | Platform | Codex CLI entry point |
 | `agents/sync.sh` | Script | Deploy agent config to target repository |

@@ -23,9 +23,72 @@ PRD + Figma + API Docs              <- User-provided materials
 
 ---
 
-## 2. Three-Layer Architecture
+## 2. Spec vs Agent vs Worker
 
-### 2.1 Generation Layer -- `/spec-init`
+### Core Relationship
+
+```
+Spec  = WHAT to do     (requirements, constraints, task graph, acceptance criteria)
+Agent = HOW to do it   (platform conventions, coding rules, build tools, entry points)
+Worker = Runtime instance that reads Spec for context + follows Agent conventions for execution
+```
+
+**Spec** is the shared contract between humans and AI. It lives in the spec-orchestrator repo and defines features, tasks, dependencies, and acceptance criteria -- platform-agnostic.
+
+**Agent** is a platform-specific configuration layer. It lives in `agents/{platform}/` and defines how code should be written for that platform -- coding conventions, UI framework rules, build commands, and AI entry points.
+
+**Worker** is an AI agent instance that runs in an isolated worktree. It is created by `spec-drive`, inherits Agent conventions from the platform repo, and reads Spec files to know what to implement.
+
+### Binding Mechanism
+
+```
+spec-orchestrator/                      Platform repo (e.g., my-ios-app/)
++-------------------------------+       +-------------------------------+
+|                               |       |                               |
+| agents/ios/                   |       | .claude/config.yaml           |
+|   ai/ios.md          (HOW)   | sync  |   specs_path: ../specs/proj   |
+|   ai/ui.md           (HOW)   |------>|   platform: ios               |
+|   CLAUDE.md          (HOW)   |       | ai/ios.md              (HOW)  |
+|   .claude/config.yaml        |       | ai/ui.md               (HOW)  |
+|                               |       | .claude/commands/             |
+| {project}/{version}/          |       |   spec-next.md   (PROTOCOL)   |
+|   features/F01.yaml  (WHAT)  |<------| specs/ -> ../specs/{project}  |
+|   tasks/ios.md       (WHO)   | read  | CLAUDE.md              (HOW)  |
+|   config.yaml        (DEPS)  |       |                               |
+|   implementation/    (WHY)   |       |                               |
++-------------------------------+       +-------------------------------+
+```
+
+1. **Sync**: `agents/sync.sh` deploys agent configuration (shared + platform-specific) into the platform repo.
+2. **Link**: Platform repo's `.claude/config.yaml` points to the spec repo via `specs_path`, establishing a symlink.
+3. **Dispatch**: `spec-drive` reads spec files for task dependency graph, then creates a worktree in the target platform repo and launches a Worker.
+4. **Execute**: Worker inherits agent conventions (`ai/*.md`, `CLAUDE.md`) from the platform repo, and reads spec files (`features/*.yaml`, `tasks/*.md`) for requirements and context.
+
+### Multi-Platform Coordination
+
+`spec-drive` can dispatch Workers to multiple platforms simultaneously:
+
+```
+spec-drive next
+  |
+  +-- Read config.yaml -> dependency graph -> Wave 1 tasks
+  |
+  +-- iOS Worker (worktree in ios-repo)
+  |     Reads: agents/ios conventions + features/F01.yaml + tasks/ios.md
+  |     Writes: code in ios-repo + status in tasks/ios.md
+  |
+  +-- Android Worker (worktree in android-repo)
+        Reads: agents/android conventions + features/F01.yaml + tasks/android.md
+        Writes: code in android-repo + status in tasks/android.md
+```
+
+Each Worker operates independently in its own worktree. They share the same Spec (same Feature YAML, same acceptance criteria) but follow different Agent conventions (different coding rules, build tools, UI frameworks).
+
+---
+
+## 3. Three-Layer Architecture
+
+### 3.1 Generation Layer -- `/spec-init`
 
 **Responsibility**: One-shot generation of the complete spec skeleton from PRD + materials.
 
@@ -49,7 +112,7 @@ i18n seeds             ->  Step 6: Full generation       ->  config.yaml
 | refresh | `/spec-init 1.0 refresh` | Incremental additions (after PRD changes add features) |
 | validate | `/spec-init 1.0 validate` | Validate only, no file modifications |
 
-### 2.2 Orchestration Layer -- `/spec-drive`
+### 3.2 Orchestration Layer -- `/spec-drive`
 
 **Responsibility**: Task analysis + dependency graph + worktree creation + Worker dispatch + status monitoring.
 
@@ -96,7 +159,7 @@ i18n seeds             ->  Step 6: Full generation       ->  config.yaml
 | `verify` | End of version | Version branch compilation check |
 | `done` | Once per version | Version completion summary |
 
-### 2.3 Execution Layer -- `/spec-next` (Worker)
+### 3.3 Execution Layer -- `/spec-next` (Worker)
 
 **Responsibility**: Autonomously complete the full development lifecycle within a worktree.
 
@@ -126,7 +189,7 @@ i18n seeds             ->  Step 6: Full generation       ->  config.yaml
 
 ---
 
-## 3. Specification Layer -- Directory Structure
+## 4. Specification Layer -- Directory Structure
 
 ```
 {project}/{version}/
@@ -156,8 +219,9 @@ i18n seeds             ->  Step 6: Full generation       ->  config.yaml
 |                                         state_matrix <- state scenarios
 |                                         figma.pages[] <- design resources
 |                                         api[] <- endpoint definitions
-|                                         analytics[] <- event tracking
-|                                         i18n_keys[] <- internationalization
+|                                         analytics[] <- event tracking (capability)
+|                                         i18n_keys[] <- internationalization (capability)
+|                                         capabilities[] <- enabled capability list
 |                                         platform_tasks <- T/B mapping
 |                                         dependencies <- inter-feature deps
 |
@@ -167,7 +231,7 @@ i18n seeds             ->  Step 6: Full generation       ->  config.yaml
 |   +-- ios.md ------------------------ T01-T{nn} single source of truth (iOS)
 |   +-- android.md -------------------- T01-T{nn} single source of truth (Android)
 |
-+-- i18n/
++-- i18n/                                 (capability: i18n)
 |   +-- strings.md -------------------- key | zh | ja | en
 |
 +-- figma-index.md -------------------- Section -> Page -> Node ID
@@ -188,15 +252,15 @@ i18n seeds             ->  Step 6: Full generation       ->  config.yaml
 
 ---
 
-## 4. Data Flow
+## 5. Data Flow
 
-### 4.1 Generation-Time Data Flow (spec-init)
+### 5.1 Generation-Time Data Flow (spec-init)
 
 ```
 PRD --+-- Epic/Feature extraction -----> features/F{nn}.yaml
       +-- Analytics extraction ---------> features/F{nn}.yaml -> analytics[]
       +-- Dependency extraction --------> tasks/backend.md (B{nn})
-      +-- Copy extraction --------------> i18n/strings.md
+      +-- Copy extraction --------------> i18n/strings.md (if i18n capability enabled)
 
 Figma --- Section/Page query ----------> figma-index.md
       +-- Page->Feature mapping --------> features/F{nn}.yaml -> figma.pages[]
@@ -208,7 +272,7 @@ All above --- Reverse index ------------> config.yaml -> dependency_index
           +-- Task scatter -------------> tasks/{ios,android}.md
 ```
 
-### 4.2 Execution-Time Data Flow (spec-drive + spec-next)
+### 5.2 Execution-Time Data Flow (spec-drive + spec-next)
 
 ```
 config.yaml ----------------------> spec-drive: version config
@@ -220,14 +284,14 @@ features/F{nn}.yaml -------------> Worker Step 4: context collection
                                  -> Worker Step 7: API Verify baseline
 
 figma-index.md ------------------> Worker Step 7: Figma screenshot download
-i18n/strings.md -----------------> Worker Step 7: i18n file writing
+i18n/strings.md -----------------> Worker Step 7: i18n file writing (if i18n capability enabled)
 tasks/backend.md ----------------> Worker Step 7: API Contract Verify
 
 implementation/*.md -------------> Worker Step 6: read/generate design
                                  -> Worker Step 7: implement per design
 ```
 
-### 4.3 Change-Time Data Flow (spec-drive change + propagate)
+### 5.3 Change-Time Data Flow (spec-drive change + propagate)
 
 ```
 Change occurs
@@ -253,7 +317,7 @@ Manual spec file updates (YAML + Task)
 
 ---
 
-## 5. Feature YAML vs implementation/ Division
+## 6. Feature YAML vs implementation/ Division
 
 ```
 Feature YAML = What + Constraint         implementation/ = How + Why
@@ -291,7 +355,7 @@ Feature YAML = What + Constraint         implementation/ = How + Why
 
 ---
 
-## 6. Status Lifecycle
+## 7. Status Lifecycle
 
 ```
 pending (not started)
@@ -327,7 +391,7 @@ active (in progress)
 
 ---
 
-## 7. Branch and Worktree Strategy
+## 8. Branch and Worktree Strategy
 
 ```
 master (or main)
@@ -355,7 +419,7 @@ Clean  -> wt.sh -f rm T01-xxx -> delete worktree + branch + tmux window
 
 ---
 
-## 8. Smart Analysis -- Execution Waves
+## 9. Smart Analysis -- Execution Waves
 
 Build a dependency graph from the dependency column in tasks/{platform}.md to plan parallel execution batches:
 
@@ -383,7 +447,7 @@ Blocked: T02, T03                       <- Waiting for backend B01-B02
 
 ---
 
-## 9. Change Management
+## 10. Change Management
 
 ```
 CHANGELOG.md              dependency_index            Feature YAML
@@ -410,7 +474,7 @@ CHANGELOG.md              dependency_index            Feature YAML
 
 ---
 
-## 10. Authoritative File Index
+## 11. Authoritative File Index
 
 | File | Role | Written By | Read By |
 |------|------|------------|---------|
@@ -425,14 +489,14 @@ CHANGELOG.md              dependency_index            Feature YAML
 | `{project}/{version}/CHANGELOG.md` | Change tracking | spec-drive change | propagate |
 | `{project}/{version}/DASHBOARD.md` | Progress dashboard | spec-drive status | Manual viewing |
 | `{project}/{version}/figma-index.md` | Figma index | spec-init | Worker |
-| `{project}/{version}/i18n/strings.md` | Internationalization | spec-init | Worker |
+| `{project}/{version}/i18n/strings.md` | Internationalization (capability) | spec-init | Worker |
 | `_scripts/SPEC-DRIVE-GUIDE.md` | Operations guide | - | Manual reference |
 | `_scripts/SPEC-ARCHITECTURE.md` | Architecture doc | - | Manual reference |
 | `_templates/*.yaml\|md` | File templates | - | spec-init |
 
 ---
 
-## 11. Typical Workflow
+## 12. Typical Workflow
 
 ### New Version Full Development
 

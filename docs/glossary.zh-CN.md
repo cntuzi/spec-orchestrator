@@ -22,8 +22,9 @@
 | `acceptance_criteria` | AC01-ACnn 验收标准，按 ui / interaction / data 分类 |
 | `figma.pages[]` | 关联的 Figma 设计页面及 node_id |
 | `api[]` | 关联的后端接口定义 |
-| `analytics[]` | 埋点事件（type / stype / frominfo / trigger） |
-| `i18n_ref` | 国际化字符串引用（指向 strings.md） |
+| `capabilities` | 该功能启用的能力列表（如 `[analytics, i18n]`） |
+| `analytics[]` | 埋点事件——需声明 `capabilities: [analytics]` |
+| `i18n_ref` | 国际化字符串引用——需声明 `capabilities: [i18n]` |
 | `platform_tasks` | 平台任务映射（ios: T{nn}, android: T{nn}, backend: B{nn}） |
 | `dependencies` | 功能间依赖关系 |
 
@@ -248,6 +249,28 @@ pending --Lock--> active --Pass--> done
 
 执行层命令（Worker 视角）。查看所有平台任务状态，定位下一个可执行任务。
 
+### Agent
+
+**平台特定的配置模板**，定义代码应该如何编写。存放在 spec-orchestrator 仓库的 `agents/{platform}/` 中。
+
+Agent 不是一个运行中的进程——它是一个静态配置层，包含：
+
+| 组件 | 用途 |
+|------|------|
+| `ai/{platform}.md` | 语言和架构编码规范 |
+| `ai/ui.md` | UI 框架规范（SwiftUI、Compose 等） |
+| `CLAUDE.md` | Claude Code 入口（构建命令、项目结构） |
+| `AGENTS.md` | Codex CLI 入口 |
+| `.claude/config.yaml` | 项目配置模板，含 specs_path 和 platform |
+
+**与 Spec 的关系**：Spec 定义做什么（需求、验收标准）。Agent 定义怎么做（编码风格、构建工具、框架规则）。两者互补——Worker 需要同时使用两者。
+
+**与 Worker 的关系**：Agent 是模板；Worker 是运行时实例。当 `spec-drive` 派发 Worker 时，Worker 从平台仓库继承 Agent 规范，并从 Spec 文件读取任务上下文。
+
+**部署方式**：`agents/sync.sh` 将 Agent 配置（共享 `_shared/` + 平台特定）部署到目标平台仓库。
+
+---
+
 ### Worker
 
 在 worktree 中**自主开发**的 AI 代理，遵循 11 步循环：
@@ -359,9 +382,9 @@ Figma 设计文件的**页面索引**。按 Section 分组，每个 Page 记录 
 
 ### i18n/strings.md
 
-国际化字符串的**唯一权威来源**。按 Feature 分组，每行一个 key + 多语言翻译。
+国际化字符串的**唯一权威来源**。按 Feature 分组，每行一个 key + 多语言翻译。**仅在 `context.yaml` 中启用 i18n capability 时生成**。
 
-Feature YAML 和 Task 仅引用此文件，不内联 key。
+Feature YAML 和 Task 仅引用此文件，不内联 key。Feature 必须声明 `capabilities: [i18n]` 才能使用 i18n 字段（`i18n_ref`、`i18n_keys`）。
 
 ### prd/README.md
 
