@@ -1,0 +1,165 @@
+# ==============================================================================
+# F02 - Create Task
+# ==============================================================================
+# A lighter Feature YAML. Not every feature needs full ui_contract or
+# pixel_baseline. The ui_weight: heavy signals that constraints are worthwhile,
+# but this example intentionally shows a more concise spec.
+# ==============================================================================
+
+id: F02
+name: Create Task
+module: tasks
+epic: Core Task Management
+priority: P0
+ui_weight: heavy
+
+description: |
+  Bottom sheet modal for creating a new task. Contains a title input field,
+  optional due date picker, and a save button. Validates that the title is
+  non-empty before enabling save. After successful creation, dismisses the
+  sheet and inserts the new task at the top of the list.
+
+# ==============================================================================
+# WHAT
+# ==============================================================================
+
+requirements:
+  - id: R01
+    desc: Floating action button (FAB) on task list screen opens create sheet
+  - id: R02
+    desc: Title input field with 100-character limit and live character counter
+  - id: R03
+    desc: Optional due date picker, defaults to no due date
+  - id: R04
+    desc: Save button disabled until title has at least 1 character
+  - id: R05
+    desc: On save, POST to /api/tasks and dismiss sheet on success
+
+acceptance_criteria:
+  - id: AC01
+    type: ui
+    desc: Bottom sheet with drag handle, title input, date picker, and save button
+  - id: AC02
+    type: interaction
+    desc: Save button visually disabled (gray) when title is empty
+  - id: AC03
+    type: interaction
+    desc: Tapping outside the sheet or dragging down dismisses without saving
+  - id: AC04
+    type: data
+    desc: POST /api/tasks with title and optional due_date, returns created task
+
+# ==============================================================================
+# CONSTRAINT
+# ==============================================================================
+
+ui_contract:
+  source_nodes:
+    create_sheet_empty: "200:100"
+    create_sheet_filled: "200:200"
+  required:
+    - Bottom sheet with drag indicator
+    - Single-line text input with character counter
+    - Date picker that opens inline (not a separate screen)
+  forbidden:
+    - Full-screen modal (must be bottom sheet)
+    - System date picker wheel on iOS (use compact style)
+  key_tokens:
+    sheet_corner_radius: 16
+    input_height: 48
+    save_button_height: 48
+    brand_color: "#4A90D9"
+    disabled_color: "#B0BEC5"
+
+state_matrix:
+  - id: S01
+    name: Empty form
+    figma_node: "200:100"
+    trigger: Sheet opens
+    expected: >
+      Title field empty with placeholder "What needs to be done?".
+      Due date shows "No due date" in gray. Save button disabled (gray).
+  - id: S02
+    name: Valid form
+    figma_node: "200:200"
+    trigger: User types at least 1 character in title
+    expected: >
+      Character counter shows "N/100". Save button becomes active (brand color).
+  - id: S03
+    name: Saving in progress
+    trigger: User taps Save
+    expected: >
+      Save button shows loading spinner. Input fields become non-editable.
+      Sheet cannot be dismissed by gesture.
+  - id: S04
+    name: Save error
+    trigger: POST /api/tasks returns error
+    expected: >
+      Toast message "Failed to create task. Please try again." at bottom.
+      Form remains open with data preserved. Save button re-enabled.
+  - id: S05
+    name: Title at character limit
+    trigger: User types 100 characters
+    expected: >
+      Character counter shows "100/100" in red. Further input blocked.
+
+# ==============================================================================
+# EXTERNAL REFERENCES
+# ==============================================================================
+
+figma:
+  pages:
+    - node_id: "200:100"
+      name: "Create Task - Empty"
+      source: figma-index
+    - node_id: "200:200"
+      name: "Create Task - Filled"
+      source: figma-index
+
+api:
+  - endpoint: /api/tasks
+    method: POST
+    source: swagger
+    verified: true
+    params:
+      - name: title
+        type: string
+        required: true
+        description: "Task title (1-100 characters)"
+      - name: due_date
+        type: string
+        required: false
+        description: "ISO 8601 date string, e.g. 2026-04-15"
+    response_fields:
+      - name: task
+        type: object
+        description: "Created task object with id, title, status, due_date, created_at"
+
+analytics:
+  - event_name: create_task_sheet_opened
+    trigger: FAB tapped, sheet appears
+  - event_name: task_created
+    trigger: Save succeeds
+    params:
+      has_due_date: "boolean"
+
+i18n_ref:
+  section: "F02-create-task"
+  source: strings.md
+
+i18n_keys:
+  - todo.create.placeholder
+  - todo.create.due_date.none
+  - todo.create.due_date.label
+  - todo.create.save
+  - todo.create.char_counter
+  - todo.create.error.save_failed
+
+platform_tasks:
+  ios: T02
+  android: T02
+  backend: B01
+
+dependencies: []
+
+revisions: []

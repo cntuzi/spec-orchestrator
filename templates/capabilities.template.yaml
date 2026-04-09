@@ -1,0 +1,176 @@
+# Capabilities — Optional behaviors that augment the core pipeline
+#
+# NOT a standalone file. Capabilities are declared at two levels:
+#
+# 1. Version level (in context.yaml):
+#    Declares which capabilities this version enables.
+#    ```
+#    capabilities:
+#      i18n:
+#        enabled: false
+#      analytics:
+#        enabled: true
+#      dark_mode:
+#        enabled: true
+#    ```
+#
+# 2. Feature level (in Feature YAML):
+#    Each feature declares which capabilities it uses.
+#    Only enabled capabilities in context.yaml can be referenced.
+#    ```
+#    capabilities: [analytics, dark_mode]   # this feature needs these
+#    analytics:
+#      - event_name: task_list_viewed
+#        trigger: Screen appears
+#    ```
+#    Features with capabilities: [] or omitted → core pipeline only.
+#
+# This file is a REFERENCE for available capabilities and their phase hooks.
+# It stays in templates/ — do not copy to projects.
+#
+# Core pipeline (always):
+#   PRD → Features → Tasks → Execute → Build Verify
+#
+# Capabilities hook into phases:
+#   init     → generate artifacts during spec-init
+#   collect  → gather context before Worker executes
+#   execute  → Worker actions during implementation
+#   verify   → validation checks after implementation
+
+# =============================================================================
+# Available Capabilities
+# =============================================================================
+
+definitions:
+
+  # ---------------------------------------------------------------------------
+  # i18n — Internationalization / Multi-language support
+  # ---------------------------------------------------------------------------
+  i18n:
+    description: "Multi-language string management"
+    default: false                     # most projects don't need this
+    config:
+      languages: ["zh", "en", "ja"]
+      primary: "zh"
+      strings_file: "i18n/strings.md"
+    feature_fields:                    # fields added to Feature YAML when enabled
+      - i18n_ref                      # reference to strings.md section
+      - i18n_keys                     # string key list
+    phases:
+      init:
+        - "Generate {strings_file} with key/language columns"
+        - "Add i18n_ref + i18n_keys to Feature YAMLs that have capabilities: [i18n]"
+        - "Add i18n path to version config.yaml"
+      collect:
+        - "Read {strings_file} for feature's string keys"
+      execute:
+        - "Add strings to platform localization files"
+        - "Verify format specifiers match across languages"
+      verify:
+        - "All i18n_ref anchors exist in {strings_file}"
+        - "No hardcoded user-facing strings in changed files"
+
+  # ---------------------------------------------------------------------------
+  # analytics — Event tracking / User behavior analytics
+  # ---------------------------------------------------------------------------
+  analytics:
+    description: "Event tracking and analytics instrumentation"
+    default: true                      # most projects need this
+    config:
+      event_format: "type/stype/frominfo/trigger"
+    feature_fields:
+      - analytics                      # event definition list
+    phases:
+      init:
+        - "Extract analytics events from PRD"
+        - "Add analytics[] to Feature YAMLs that have capabilities: [analytics]"
+      collect:
+        - "Read Feature YAML analytics[] definitions"
+      execute:
+        - "Add tracking code at trigger points"
+      verify:
+        - "All analytics[] events have corresponding tracking code"
+
+  # ---------------------------------------------------------------------------
+  # dark_mode — Dark/Night mode adaptation
+  # ---------------------------------------------------------------------------
+  dark_mode:
+    description: "Dark mode / night mode UI adaptation"
+    default: false
+    config:
+      manager_pattern: "platform-specific"  # filled from PROJECT.md
+    feature_fields: []                 # no extra YAML fields; uses state_matrix
+    phases:
+      init:
+        - "Add dark mode state entries to state_matrix for UI features"
+        - "Link Figma night mode variant nodes"
+      collect:
+        - "Read Figma night mode variants"
+        - "Read platform dark mode manager patterns from PROJECT.md"
+      execute:
+        - "Implement night mode color variants"
+        - "Use platform dark mode manager for theme switching"
+      verify:
+        - "All new UI elements have night mode support"
+        - "Night mode screenshots match Figma variants"
+
+  # ---------------------------------------------------------------------------
+  # accessibility — VoiceOver / TalkBack support
+  # ---------------------------------------------------------------------------
+  accessibility:
+    description: "Screen reader and accessibility support"
+    default: false
+    feature_fields:
+      - accessibility_labels
+    phases:
+      init:
+        - "Add accessibility requirements to acceptance criteria"
+      execute:
+        - "Add accessibilityLabel (iOS) / contentDescription (Android)"
+      verify:
+        - "All interactive elements have accessibility labels"
+
+  # ---------------------------------------------------------------------------
+  # version_control — Feature flag / version gating
+  # ---------------------------------------------------------------------------
+  version_control:
+    description: "Feature flags and version-gated rollout"
+    default: false
+    config:
+      system: "custom"                 # firebase_remote_config / custom / etc
+    feature_fields: []
+    phases:
+      execute:
+        - "Wrap new features in version/feature flag checks"
+      verify:
+        - "Feature flags registered in config system"
+
+# =============================================================================
+# Usage Examples
+# =============================================================================
+#
+# context.yaml (my-app v1.0):
+#   capabilities:
+#     analytics:
+#       enabled: true
+#     dark_mode:
+#       enabled: true
+#       config:
+#         manager_pattern: "ios: GeneralDarkModeManager, android: ThemeNightModeCenter"
+#
+# F05-home-visual.yaml:
+#   capabilities: [analytics, dark_mode]
+#   analytics:
+#     - event_name: home_viewed
+#       trigger: Screen appears
+#
+# F01-candy-reward.yaml:
+#   capabilities: []    # logic-only, no capabilities needed
+#
+# spec-init behavior:
+#   1. Read context.yaml capabilities (version-level enabled set)
+#   2. For each Feature:
+#      - Intersect feature.capabilities with version-enabled set
+#      - Only generate fields for matched capabilities
+#   3. Step 6.8: generate artifacts for enabled capabilities
+#   4. Step 7: validate only enabled capability outputs

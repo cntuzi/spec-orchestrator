@@ -1,0 +1,319 @@
+# ==============================================================================
+# F01 - Task List
+# ==============================================================================
+# This is a complete Feature YAML demonstrating ALL fields.
+# It serves as the single authoritative definition for the Task List feature.
+# ==============================================================================
+
+id: F01
+name: Task List
+module: tasks
+epic: Core Task Management
+priority: P0
+ui_weight: heavy
+
+description: |
+  Main screen of the app. Displays all tasks in a scrollable list with
+  pull-to-refresh. Users can filter tasks by status (all / active / completed)
+  and sort by due date or creation date. Tapping a task navigates to the
+  detail view. Swipe-to-delete is supported with confirmation.
+
+# ==============================================================================
+# WHAT -- auto-extractable from PRD
+# ==============================================================================
+
+requirements:
+  - id: R01
+    desc: Display task list with title, status indicator, and due date
+  - id: R02
+    desc: Pull-to-refresh to reload tasks from server
+  - id: R03
+    desc: Filter tabs at top -- All / Active / Completed
+  - id: R04
+    desc: Swipe left on a task to reveal delete action
+  - id: R05
+    desc: Empty state when no tasks exist, with prompt to create first task
+  - id: R06
+    desc: Loading skeleton shown during initial data fetch
+
+acceptance_criteria:
+  - id: AC01
+    type: ui
+    desc: Task cells show checkbox, title (max 2 lines), and due date right-aligned
+  - id: AC02
+    type: interaction
+    desc: Pull-to-refresh triggers API reload; spinner visible during fetch
+  - id: AC03
+    type: interaction
+    desc: Filter tab selection persists across app relaunch (stored locally)
+  - id: AC04
+    type: data
+    desc: Task list fetched from GET /api/tasks with pagination (20 per page)
+  - id: AC05
+    type: ui
+    desc: Overdue tasks show due date in red (#E53935)
+  - id: AC06
+    type: interaction
+    desc: Swipe delete shows confirmation alert before executing DELETE request
+
+# ==============================================================================
+# CONSTRAINT -- manual or semi-auto supplement
+# ==============================================================================
+
+ui_contract:
+  source_nodes:
+    default_list: "100:200"
+    empty_state: "100:300"
+    loading_skeleton: "100:400"
+    swipe_delete: "100:500"
+  required:
+    - Custom task cell with checkbox, title label, and due date label
+    - Pull-to-refresh control
+    - Segmented filter bar (All / Active / Completed)
+    - Empty state illustration with call-to-action button
+    - Skeleton loading placeholder cells
+  forbidden:
+    - System default UITableViewCell styles (Basic, Subtitle, etc.)
+    - UIAlertController for delete confirmation (use custom inline confirmation)
+    - Infinite scroll without explicit "Load More" indicator
+  key_tokens:
+    cell_height: 64
+    cell_horizontal_inset: 16
+    checkbox_size: 24
+    checkbox_corner_radius: 12
+    title_font_size: 16
+    due_date_font_size: 13
+    brand_color: "#4A90D9"
+    overdue_color: "#E53935"
+    separator_inset_left: 56
+    empty_state_icon_size: 120
+  visual_blockers:
+    - Cell height must be exactly 64pt
+    - Checkbox must be circular (corner_radius = size/2)
+    - Empty state illustration must be centered vertically
+
+delivery_contract:
+  stack_baseline:
+    ios: "UIKit + DiffableDataSource + Combine"
+    android: "Jetpack Compose + LazyColumn + ViewModel"
+  ui_split:
+    L1_structure: "List container + cell layout"
+    L2_visual: "Colors, fonts, spacing per key_tokens"
+    L3_interaction: "Pull-to-refresh, swipe, filter toggle"
+    L4_evidence: "Screenshot comparison vs Figma nodes"
+  data_contract:
+    source_priority: [server, local_cache]
+    cache_strategy: "Cache server response; show cached data on launch, refresh in background"
+    pagination:
+      page_size: 20
+      strategy: "offset-based"
+
+state_matrix:
+  - id: S01
+    name: Empty state
+    figma_node: "100:300"
+    trigger: User has no tasks (new account or all deleted)
+    expected: >
+      Centered illustration with text "No tasks yet" and a "Create Task" button.
+      Filter bar hidden.
+  - id: S02
+    name: Loading state
+    figma_node: "100:400"
+    trigger: Initial app launch or pull-to-refresh initiated
+    expected: >
+      3 skeleton placeholder cells with shimmer animation.
+      Filter bar visible but disabled.
+  - id: S03
+    name: Default list (mixed statuses)
+    figma_node: "100:200"
+    trigger: Tasks fetched successfully, mix of active and completed
+    expected: >
+      Scrollable list. Active tasks show unchecked circle. Completed tasks
+      show filled checkbox with strikethrough title. Filter bar shows counts.
+  - id: S04
+    name: Filtered -- Active only
+    figma_node: "100:200"
+    trigger: User taps "Active" filter tab
+    expected: >
+      Only active (uncompleted) tasks shown. "Active" tab highlighted.
+      If no active tasks, show inline empty message (not full empty state).
+  - id: S05
+    name: Filtered -- Completed only
+    figma_node: "100:200"
+    trigger: User taps "Completed" filter tab
+    expected: >
+      Only completed tasks shown. "Completed" tab highlighted.
+  - id: S06
+    name: Swipe delete confirmation
+    figma_node: "100:500"
+    trigger: User swipes left on a task cell
+    expected: >
+      Red delete button revealed. Tapping shows inline confirmation
+      "Delete this task?" with Cancel / Delete options.
+  - id: S07
+    name: Network error
+    trigger: API request fails (timeout or server error)
+    expected: >
+      If cached data exists, show cached list + top banner "Unable to refresh.
+      Showing cached data." If no cached data, show error state with retry button.
+  - id: S08
+    name: Overdue task highlight
+    trigger: Task due_date is before current date and task is not completed
+    expected: >
+      Due date label shows in red (#E53935). Rest of cell unchanged.
+
+pixel_baseline:
+  cell:
+    height: 64
+    horizontal_inset: 16
+    vertical_padding: 12
+    checkbox_leading: 16
+    checkbox_to_title: 12
+  filter_bar:
+    height: 44
+    tab_horizontal_padding: 16
+  empty_state:
+    icon_size: 120
+    icon_to_text: 16
+    text_to_button: 24
+
+conflict_resolution:
+  - key: "Cell height"
+    figma: "64pt"
+    prd: "not specified"
+    decided_source: figma
+    owner: design
+    decision_date: "2026-01-15"
+  - key: "Pagination size"
+    figma: "n/a"
+    prd: "20 per page"
+    decided_source: prd
+    owner: backend
+    decision_date: "2026-01-15"
+
+verification_evidence:
+  - type: screenshot
+    desc: "Default list state compared against Figma node 100:200"
+  - type: screenshot
+    desc: "Empty state compared against Figma node 100:300"
+  - type: interaction
+    desc: "Pull-to-refresh triggers reload and shows spinner"
+  - type: data
+    desc: "GET /api/tasks returns paginated results matching response schema"
+
+# ==============================================================================
+# EXTERNAL REFERENCES
+# ==============================================================================
+
+figma:
+  pages:
+    - node_id: "100:200"
+      name: "Task List - Default"
+      source: figma-index
+    - node_id: "100:300"
+      name: "Task List - Empty State"
+      source: figma-index
+    - node_id: "100:400"
+      name: "Task List - Loading Skeleton"
+      source: figma-index
+    - node_id: "100:500"
+      name: "Task List - Swipe Delete"
+      source: figma-index
+
+api:
+  - endpoint: /api/tasks
+    method: GET
+    source: swagger
+    verified: true
+    params:
+      - name: status
+        type: string
+        required: false
+        description: "Filter by status: all | active | completed"
+      - name: page
+        type: integer
+        required: false
+        description: "Page number (default 1)"
+      - name: per_page
+        type: integer
+        required: false
+        description: "Items per page (default 20)"
+      - name: sort_by
+        type: string
+        required: false
+        description: "Sort field: due_date | created_at"
+    response_fields:
+      - name: tasks
+        type: array
+        description: "Array of task objects"
+      - name: total_count
+        type: integer
+        description: "Total number of tasks matching filter"
+      - name: page
+        type: integer
+      - name: per_page
+        type: integer
+  - endpoint: /api/tasks/{id}
+    method: DELETE
+    source: swagger
+    verified: true
+    params:
+      - name: id
+        type: integer
+        required: true
+        description: "Task ID (path parameter)"
+    response_fields:
+      - name: success
+        type: boolean
+
+analytics:
+  - event_name: task_list_viewed
+    trigger: Screen appears
+    params:
+      filter: "current filter tab value"
+      task_count: "number of visible tasks"
+  - event_name: task_filter_changed
+    trigger: User taps a filter tab
+    params:
+      from_filter: "previous filter"
+      to_filter: "new filter"
+  - event_name: task_deleted
+    trigger: User confirms task deletion
+    params:
+      task_id: "deleted task ID"
+
+i18n_ref:
+  section: "F01-task-list"
+  source: strings.md
+
+i18n_keys:
+  - todo.list.title
+  - todo.list.filter.all
+  - todo.list.filter.active
+  - todo.list.filter.completed
+  - todo.list.empty.title
+  - todo.list.empty.subtitle
+  - todo.list.empty.create_button
+  - todo.list.delete.confirm_title
+  - todo.list.delete.confirm_message
+  - todo.list.delete.cancel
+  - todo.list.delete.confirm
+  - todo.list.error.network
+  - todo.list.error.cached_banner
+
+# ==============================================================================
+# TASK MAPPING
+# ==============================================================================
+
+platform_tasks:
+  ios: T01
+  android: T01
+  backend: B01
+
+dependencies: []
+
+# ==============================================================================
+# REVISION HISTORY
+# ==============================================================================
+
+revisions: []

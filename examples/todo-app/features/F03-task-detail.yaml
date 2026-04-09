@@ -1,0 +1,130 @@
+# ==============================================================================
+# F03 - Task Detail
+# ==============================================================================
+# A light UI feature -- fewer constraints needed.
+# ==============================================================================
+
+id: F03
+name: Task Detail
+module: tasks
+epic: Core Task Management
+priority: P1
+ui_weight: light
+
+description: |
+  Detail view for a single task. Shows full title, status toggle, due date,
+  creation date, and a notes field. User can edit title and notes inline,
+  toggle completion status, and change due date.
+
+requirements:
+  - id: R01
+    desc: Display task title, status, due date, created date, and notes
+  - id: R02
+    desc: Tap checkbox to toggle completion status (PATCH /api/tasks/{id})
+  - id: R03
+    desc: Inline edit for title and notes fields
+  - id: R04
+    desc: Back navigation returns to task list
+
+acceptance_criteria:
+  - id: AC01
+    type: ui
+    desc: Title displayed prominently at top, notes in scrollable area below
+  - id: AC02
+    type: interaction
+    desc: Toggling status sends PATCH request and updates UI optimistically
+  - id: AC03
+    type: data
+    desc: GET /api/tasks/{id} fetches full task detail on screen load
+
+state_matrix:
+  - id: S01
+    name: Active task
+    figma_node: "300:100"
+    trigger: Navigate to an uncompleted task
+    expected: Unchecked checkbox, title in normal weight, editable fields
+  - id: S02
+    name: Completed task
+    figma_node: "300:200"
+    trigger: Navigate to a completed task or toggle checkbox
+    expected: Checked checkbox, title with strikethrough, fields still editable
+  - id: S03
+    name: Task not found
+    trigger: Task was deleted by another client
+    expected: Error message "Task not found" with back button
+
+figma:
+  pages:
+    - node_id: "300:100"
+      name: "Task Detail - Active"
+      source: figma-index
+    - node_id: "300:200"
+      name: "Task Detail - Completed"
+      source: figma-index
+
+api:
+  - endpoint: /api/tasks/{id}
+    method: GET
+    source: swagger
+    verified: true
+    params:
+      - name: id
+        type: integer
+        required: true
+    response_fields:
+      - name: task
+        type: object
+        description: "Full task object: id, title, status, due_date, notes, created_at, updated_at"
+  - endpoint: /api/tasks/{id}
+    method: PATCH
+    source: swagger
+    verified: true
+    params:
+      - name: id
+        type: integer
+        required: true
+      - name: title
+        type: string
+        required: false
+      - name: status
+        type: string
+        required: false
+        description: "active | completed"
+      - name: notes
+        type: string
+        required: false
+      - name: due_date
+        type: string
+        required: false
+
+analytics:
+  - event_name: task_detail_viewed
+    trigger: Screen appears
+    params:
+      task_id: "task ID"
+      task_status: "active | completed"
+  - event_name: task_status_toggled
+    trigger: Checkbox tapped
+    params:
+      task_id: "task ID"
+      new_status: "active | completed"
+
+i18n_ref:
+  section: "F03-task-detail"
+  source: strings.md
+
+i18n_keys:
+  - todo.detail.notes.placeholder
+  - todo.detail.due_date.label
+  - todo.detail.created.label
+  - todo.detail.not_found
+
+platform_tasks:
+  ios: T03
+  android: T03
+  backend: B02
+
+dependencies:
+  - F01  # Task list provides navigation entry point
+
+revisions: []

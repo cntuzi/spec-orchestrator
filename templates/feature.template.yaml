@@ -1,0 +1,159 @@
+# Feature Definition: {FEATURE_NAME}
+# Version: {VERSION}
+
+id: F{NN}
+name: "{FEATURE_NAME}"
+module: "{MODULE}"
+epic: {EPIC_NUMBER}
+priority: P0
+prd_ref: "{PRD_FILE}#{SECTION}"
+day: D{N}
+
+# Feature Description
+description: |
+  {Feature description extracted from PRD}
+
+# Feature Requirements
+requirements:
+  - id: R01
+    desc: "{Requirement description}"
+
+# Acceptance Criteria
+acceptance_criteria:
+  - id: AC01
+    type: ui        # ui / interaction / api / data
+    desc: "{Acceptance criteria description}"
+
+# =============================================
+# UI Contract (mandatory for UI-related features)
+# =============================================
+# Goal: Prevent "feature works but visuals are misaligned"
+ui_contract:
+  source_nodes:
+    section: "{SECTION_NODE_ID}"            # e.g. "119:264"
+    default_state: "{STATE_NODE_ID}"        # e.g. "119:370#119:448"
+  required:
+    - "{MUST_IMPLEMENT_ITEM}"               # e.g. "Custom centered Modal + dim overlay"
+  forbidden:
+    - "{FORBIDDEN_ITEM}"                    # e.g. "System default alert dialog"
+  key_tokens:
+    size: "{WIDTHxHEIGHT}"                  # e.g. "267x334"
+    corner_radius: {RADIUS}                 # e.g. 20
+
+# =============================================
+# Delivery Contract (mandatory for UI-related features)
+# =============================================
+# Goal: Front-load stack reuse + split delivery + data source decisions to reduce rework
+# Detailed rules: specs/workflows/ui-delivery-playbook.md
+delivery_contract:
+  stack_baseline:
+    ios:
+      list: "{IOS_LIST_STACK}"               # e.g. "IGListKit + CollectionView + SectionController"
+      nav: "{IOS_NAV_COMPONENT}"             # e.g. "CustomNavigationBar"
+      button: "{IOS_BUTTON_COMPONENT}"       # e.g. "PrimaryButton(.primary)"
+    android:
+      list: "{ANDROID_LIST_STACK}"           # e.g. "RecyclerView + Adapter + ViewHolder"
+      nav: "{ANDROID_NAV_COMPONENT}"         # e.g. "DesignSystem NavBar"
+      button: "{ANDROID_BUTTON_COMPONENT}"   # e.g. "PrimaryButton"
+    forbidden:
+      - "{FORBIDDEN_ALTERNATIVE_1}"          # e.g. "Using ScrollView + LinearLayout instead of list"
+  ui_split:
+    - "L1-Structure"
+    - "L2-Visual"
+    - "L3-Interaction State"
+    - "L4-Verification Evidence"
+  data_contract:
+    fields:
+      - key: "{FIELD_KEY}"                   # e.g. "self.nickname"
+        source_priority: ["{SOURCE_1}", "{SOURCE_2}", "{SOURCE_3}"]
+        writeback: "{WRITEBACK_TARGET}"      # e.g. "user_self_setting.save.nickname"
+    required_checks:
+      - "{FIELD_TYPE_AND_LIMIT_SOURCE}"      # e.g. "Field types and limits from swagger/backend.md"
+      - "{PRIORITY_CONSISTENCY}"             # e.g. "Echo priority matches PRD"
+
+state_matrix:
+  - id: S01
+    name: "{STATE_NAME}"                     # e.g. empty / filled / error
+    figma_node: "{NODE_ID}"                  # e.g. "119:370#119:448"
+    trigger: "{TRIGGER_CONDITION}"
+    expected: "{EXPECTED_BEHAVIOR}"
+
+verification_evidence:
+  required:
+    - "{FIGMA_BASELINE_PATH}"               # e.g. .claude/cache/{version}/figma/rewrite/119-370.png
+    - "{IMPLEMENTATION_SCREENSHOT_DESC}"     # e.g. Implementation screenshot: empty/filled/error states
+  checks:
+    - "rg -n \"{FORBIDDEN_PATTERN}\" {PROJECT_DIR}"
+
+# =============================================
+# Design Resources - must cross-validate with figma-index.md
+# =============================================
+figma:
+  file_key: "{FIGMA_FILE_KEY}"
+  pages:
+    - name: "{PAGE_NAME}"
+      node_id: "{NODE_ID}"
+      usage: "{USAGE}"
+      source: figma-index  # figma-index | manual - mark origin
+
+# =============================================
+# API Dependencies - core: each endpoint must have source + verified
+# =============================================
+#
+# source values:
+#   swagger:{file}   - from Swagger JSON, auto-verifiable
+#   backend.md#B{nn} - from backend.md manual record (non-Swagger endpoints)
+#   TBD              - endpoint docs not yet available, must be filled before execution
+#
+# verified values:
+#   true              - field-by-field verified against actual API docs
+#   false             - not verified (inferred from PRD only)
+#
+api:
+  - endpoint: "{/path/to/endpoint}"
+    method: POST         # POST / GET / SSE / WebSocket / long-polling
+    source: "swagger:{service}_swagger.json"   # or "backend.md#B01" or "TBD"
+    verified: false      # default false at generation, set true after Phase 3 alignment
+    usage: "{ENDPOINT_USAGE}"
+    params:              # extracted from Swagger/docs, not hand-written
+      - name: session_id
+        type: uint64
+        required: true
+    response_fields:     # response fields the task logic depends on
+      - name: reset_time
+        type: int64
+        usage: "Multi-device sync marker"
+
+# =============================================
+# Capabilities — only include sections for capabilities this feature uses
+# Must be a subset of capabilities enabled in context.yaml (version-level)
+# =============================================
+capabilities: []      # e.g., [analytics, dark_mode] or [analytics, i18n]
+
+# Analytics (only if analytics in capabilities list)
+# analytics:
+#   - type: click
+#     stype: "{SCENE}"
+#     frominfo: "{FEATURE_IDENTIFIER}"
+#     trigger: "{TRIGGER_DESCRIPTION}"
+
+# i18n (only if i18n in capabilities list)
+# i18n_ref:
+#   section: "{FEATURE_SECTION}"
+#   source: strings.md
+# i18n_keys:
+#   - key: "{key}"
+#     zh: "{CHINESE_TEXT}"
+#     en: "{ENGLISH_TEXT}"
+
+# Platform Task References
+platform_tasks:
+  ios: T{NN}
+  android: T{NN}
+  backend: B{NN}     # optional, not needed for pure client-side features
+
+# Dependencies
+dependencies: []      # [F01, F02] - inter-feature dependencies
+
+# Status
+status: pending       # pending | in_progress | completed | blocked

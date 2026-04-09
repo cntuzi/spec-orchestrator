@@ -1,0 +1,31 @@
+# Claude Code Project Configuration - Android
+# This config is read by spec-drive Workers operating in an Android repository.
+# Placeholders ({PROJECT_NAME}, etc.) are replaced by sync.sh during deployment.
+
+project:
+  name: "{PROJECT_NAME}"
+  platform: android
+  description: "{PROJECT_DESCRIPTION} Android client"
+
+specs:
+  path: specs
+api_doc:
+  path: ../api-doc
+version:
+  current: "1.0"
+
+paths:
+  version_config: "{specs}/{version}/config.yaml"
+  prd: "{specs}/{version}/prd/"
+  design: "{specs}/{version}/figma-index.md"
+  i18n: "{specs}/{version}/i18n/strings.md"
+  features: "{specs}/{version}/features/"
+  tasks:
+    shared: "{specs}/{version}/tasks/shared.md"
+    backend: "{specs}/{version}/tasks/backend.md"
+    self: "{specs}/{version}/tasks/{platform}.md"
+
+dependencies:
+  shared: [S1, S2, S3]
+cache:
+  figma: ".claude/cache/{version}/figma"

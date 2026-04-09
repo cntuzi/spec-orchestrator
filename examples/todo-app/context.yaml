@@ -1,0 +1,48 @@
+# Context Manifest — Todo App v1.0
+# Declares all external dependencies for this version's spec.
+# Paths resolved at runtime by resolve-context.sh → .context-resolved.yaml
+
+sources:
+
+  prd:
+    type: local
+    description: "Todo App PRD"
+    artifacts:
+      - prd/README.md
+
+  api_doc:
+    type: git-repo
+    description: "Todo App backend API (Swagger)"
+    repo_id: api-doc
+    artifacts:
+      - todo_swagger.json
+    pin:
+      commit: a1b2c3d
+      date: 2026-01-15
+
+  figma:
+    type: figma
+    description: "Todo App UI Design"
+    file_key: "YOUR_FIGMA_FILE_KEY"
+    cache_dir: figma/
+    pin:
+      last_sync: 2026-01-15T10:00:00Z
+      node_count: 12
+
+  platforms:
+    ios:
+      type: git-repo
+      description: "Todo App iOS client"
+      repo_id: ios
+      pin:
+        branch: master
+        base_commit: d4e5f6a
+    android:
+      type: git-repo
+      description: "Todo App Android client"
+      repo_id: android
+      pin:
+        branch: master
+        base_commit: g7h8i9j
+
+drift_policy: warn

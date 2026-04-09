@@ -1,0 +1,149 @@
+# Context Manifest — External Dependency Declaration
+# Location: {project}/{version}/context.yaml
+#
+# Purpose:
+#   Declares ALL external context this version's spec depends on.
+#   Contains only logical identifiers and version pins — no file system paths.
+#   Paths are resolved at runtime by resolve-context.sh → .context-resolved.yaml
+#
+# Lifecycle:
+#   /spec-init  → generates this file (auto-fill from PRD + Swagger + Figma)
+#   /spec-drive → reads this file, runs resolve-context.sh before dispatch
+#   /spec-next  → reads .context-resolved.yaml for actual paths
+#
+# Resolution order (per repo_id):
+#   1. Environment variable: SPEC_REPO_{REPO_ID}  (e.g. SPEC_REPO_API_DOC)
+#   2. Existing symlink in working directory        (e.g. ./api-doc)
+#   3. Git worktree discovery: main repo → parent → sibling repos
+#   4. Hint path from .claude/config.yaml repos[].hint
+#   5. Interactive prompt (if TTY available)
+
+# =============================================================================
+# Sources — one entry per external dependency
+# =============================================================================
+
+sources:
+
+  # ---------------------------------------------------------------------------
+  # PRD (Product Requirements Document)
+  # ---------------------------------------------------------------------------
+  prd:
+    type: local                        # local = lives inside this version dir
+    description: "Product Requirements Document"
+    artifacts:
+      - prd/README.md                  # relative to {project}/{version}/
+      # - prd/requirements.pdf
+
+  # ---------------------------------------------------------------------------
+  # API Documentation
+  # ---------------------------------------------------------------------------
+  api_doc:
+    type: git-repo
+    description: "Backend API documentation (Swagger / OpenAPI)"
+    repo_id: api-doc                   # logical identifier, resolved at runtime
+    artifacts:                         # files within that repo needed by this version
+      - "{SERVICE}_swagger.json"
+    pin:
+      commit: "{COMMIT_HASH}"         # commit hash at spec-init time
+      date: "{YYYY-MM-DD}"            # human-readable snapshot date
+    # drift_policy: warn               # warn | block | ignore
+    #   warn  = log warning if current commit != pinned (default)
+    #   block = refuse to execute until re-pinned
+    #   ignore = don't check
+
+  # ---------------------------------------------------------------------------
+  # Figma Design
+  # ---------------------------------------------------------------------------
+  figma:
+    type: figma
+    description: "UI/UX Design files"
+    file_key: "{FIGMA_FILE_KEY}"
+    cache_dir: figma/                  # relative to .claude/cache/{version}/
+    pin:
+      last_sync: "{ISO_DATETIME}"      # last time cache was refreshed
+      node_count: 0                    # number of nodes cached
+    # When MCP is unavailable, Workers read from cache_dir.
+    # resolve-context.sh validates cache freshness against last_sync.
+
+  # ---------------------------------------------------------------------------
+  # Platform Repositories (code targets)
+  # ---------------------------------------------------------------------------
+  platforms:
+    ios:
+      type: git-repo
+      description: "iOS platform codebase"
+      repo_id: ios                     # resolved by orchestrator (spec-drive)
+      pin:
+        branch: master                 # base branch at spec-init time
+        base_commit: "{COMMIT_HASH}"   # baseline commit
+    android:
+      type: git-repo
+      description: "Android platform codebase"
+      repo_id: android
+      pin:
+        branch: master
+        base_commit: "{COMMIT_HASH}"
+
+  # ---------------------------------------------------------------------------
+  # Additional context (optional, add as needed)
+  # ---------------------------------------------------------------------------
+  # design_system:
+  #   type: git-repo
+  #   description: "Shared design system / component library"
+  #   repo_id: design-system
+  #   artifacts:
+  #     - tokens/colors.json
+  #     - tokens/typography.json
+  #   pin:
+  #     commit: "{COMMIT_HASH}"
+  #     date: "{YYYY-MM-DD}"
+
+  # proto:
+  #   type: git-repo
+  #   description: "Protobuf / gRPC definitions"
+  #   repo_id: proto
+  #   artifacts:
+  #     - services/chat.proto
+  #   pin:
+  #     commit: "{COMMIT_HASH}"
+  #     date: "{YYYY-MM-DD}"
+
+# =============================================================================
+# Drift Policy (global default, overridable per source)
+# =============================================================================
+
+drift_policy: warn
+# Controls what happens when resolve-context.sh detects the external repo
+# has moved past the pinned commit.
+#
+# Values:
+#   warn   — log warning, continue execution (default)
+#   block  — refuse to execute until context.yaml is re-pinned
+#   ignore — skip drift check entirely
+
+# =============================================================================
+# Capabilities (optional features, see templates/capabilities.template.yaml)
+# =============================================================================
+#
+# Inline capabilities here, or use a separate capabilities.yaml file.
+# Example:
+#   capabilities:
+#     i18n:
+#       enabled: false
+#     analytics:
+#       enabled: true
+#
+# If omitted, defaults: analytics enabled, others disabled.
+# See templates/capabilities.template.yaml for full schema.
+
+# =============================================================================
+# Build Prerequisites (environment requirements for Workers)
+# =============================================================================
+
+# build_prerequisites:
+#   - "VPN connection to internal network (for private pod/maven repos)"
+#   - "Xcode 15+ (iOS)"
+#   - "JDK 11+ (Android)"
+#   - "CocoaPods installed (iOS)"
+# Workers check these before attempting build verification.
+# If unmet, build failures are classified as "environment" not "code error".

@@ -1,0 +1,54 @@
+# Spec Orchestrator — Specs Repository Configuration
+# This config is read by /spec-drive to coordinate cross-platform development
+
+project:
+  name: my-app                 # Your project name (used as directory prefix)
+
+version:
+  current: "1.0"               # Current active version
+
+# External repository identifiers
+# Logical IDs resolved at runtime by scripts/resolve-context.sh
+# Resolution order: env var → symlink → git-worktree-discovery → hint path → prompt
+repos:
+  ios:
+    hint: ../my-ios-app              # hint path (fallback, not authoritative)
+    build_cmd: ./scripts/build.sh
+  android:
+    hint: ../my-android-app
+    build_cmd: ./gradlew assembleDebug
+  api-doc:
+    hint: ../api-doc
+
+# Platform-specific settings (keyed by repo_id)
+platforms:
+  ios:
+    repo_id: ios                     # references repos.ios
+    build_cmd: ./scripts/build.sh
+    wt_path: ../wt/my-ios-app/1.0
+    branch: feat/my-ios-app/1.0
+  android:
+    repo_id: android                 # references repos.android
+    build_cmd: ./gradlew assembleDebug
+    wt_path: ../wt/my-android-app/1.0
+    branch: feat/my-android-app/1.0
+
+# AI CLI tool for Worker execution
+# spec-drive reads this to decide which tool to launch in worktrees
+ai_cli:
+  tool: "claude-code"               # claude-code | codex | aider
+  command: "claude"                  # CLI binary to invoke
+  flags: ""                          # Auto-approval flags for autonomous mode
+  # Examples:
+  #   Claude Code: tool=claude-code, command=claude
+  #   Codex:       tool=codex, command=codex, flags=--full-auto
+  #   Aider:       tool=aider, command=aider, flags=--yes
+
+# Worktree management script (optional)
+# wt_script: ~/.claude/skills/wt/scripts/wt.sh
+
+# Version branch naming convention
+# Branch: feat/{project}/{version}
+# Path: wt/{project}/{version}/
+branch:
+  pattern: "feat/{project}/{version}"

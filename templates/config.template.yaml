@@ -1,0 +1,66 @@
+# Platform Project Configuration Template
+# Copy to your platform project's .claude/config.yaml
+# Replace all {PLACEHOLDERS} with your actual values.
+
+project:
+  name: "{PROJECT_NAME}"
+  platform: "{PLATFORM}"           # ios / android / web
+  description: "{PROJECT_DESCRIPTION}"
+
+version:
+  current: "1.0"
+
+# =============================================================================
+# External Repository References (logical IDs)
+# Resolved at runtime by resolve-context.sh
+# Resolution: env var → symlink → git-worktree-discovery → hint → prompt
+# =============================================================================
+
+repos:
+  specs:
+    hint: ../specs                  # hint path (fallback, not authoritative)
+  api-doc:
+    hint: ../api-doc
+
+# =============================================================================
+# Shared Dependencies
+# =============================================================================
+
+dependencies:
+  shared:
+    - S1    # PRD confirmed
+    - S2    # Design reviewed
+    - S3    # API defined
+
+# =============================================================================
+# Path Templates (resolved from repos at runtime)
+# Variables: {specs} {api_doc} {version} {platform}
+# At runtime, {specs} = resolved path from .context-resolved.yaml repos.specs
+# =============================================================================
+
+paths:
+  version_config: "{specs}/{version}/config.yaml"
+  prd: "{specs}/{version}/prd/"
+  design: "{specs}/{version}/figma-index.md"
+  i18n: "{specs}/{version}/i18n/strings.md"
+  features: "{specs}/{version}/features/"
+  context: "{specs}/{version}/context.yaml"
+  tasks:
+    shared: "{specs}/{version}/tasks/shared.md"
+    backend: "{specs}/{version}/tasks/backend.md"
+    self: "{specs}/{version}/tasks/{platform}.md"
+
+# =============================================================================
+# Local Cache
+# =============================================================================
+
+cache:
+  figma: ".claude/cache/{version}/figma"
+
+# =============================================================================
+# Figma (optional)
+# =============================================================================
+
+figma:
+  file_key: "{YOUR_FIGMA_FILE_KEY}"
+  base_url: "https://www.figma.com/design/{file_key}"
